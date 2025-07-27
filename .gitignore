@@ -1,0 +1,53 @@
+# Python bytecode и кеши
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
+venv/
+.env
+.envrc
+.venv/
+env/
+ENV/
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.bak
+
+# SQLite файлы базы данных
+*.db
+*.sqlite3
+data/
+
+# Установленные пакеты и дистрибутивы
+dist/
+build/
+*.egg-info/
+
+# IDE и редакторы
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Docker файловые артефакты (если есть)
+*.dockerignore
+
+# Файлы покрытий и тестов
+.coverage
+*.cover
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Spacy модели (если грузите локально, иначе удалите)
+# ru_core_news_lg/
