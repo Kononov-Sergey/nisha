@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.pain_post import PainPost
-from app.schemas.pain_post import PainPostResponse, SearchRequest
-from app.services.vk_parser import VKParser
+from app.schemas.pain_posts import PainPostResponse, SearchRequest
+from app.services.vk_parcer import VKParser
 from app.services.telegram_parser import TelegramParser 
 from app.services.pikabu_parser import PikabuParser
 
