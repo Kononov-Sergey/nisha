@@ -1,4 +1,3 @@
-import React from 'react';
 import Header from './components/Header';
 import SearchFilters from './components/SearchFilters';
 import Analytics from './components/Analytics';
@@ -8,7 +7,16 @@ import { usePainPoints } from './hooks/usePainPoints';
 import { mockAnalytics } from './data/mockData';
 
 function App() {
-  const { painPoints, filters, setFilters, exportToCSV } = usePainPoints();
+  const { 
+    painPoints, 
+    filters, 
+    setFilters, 
+    exportToCSV, 
+    isLoading, 
+    error, 
+    useApi, 
+    setUseApi 
+  } = usePainPoints();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -30,9 +38,37 @@ function App() {
           onExport={exportToCSV}
         />
 
+        {error && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="text-yellow-800">
+                  <p className="font-medium">Предупреждение</p>
+                  <p className="text-sm">{error}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUseApi(!useApi)}
+                className="ml-4 px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm hover:bg-yellow-200"
+              >
+                {useApi ? 'Перейти к тестовым данным' : 'Попробовать API снова'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <Analytics data={mockAnalytics} />
 
-        {painPoints.length > 0 ? (
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="text-gray-600">Загружаем данные...</span>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && painPoints.length > 0 ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">

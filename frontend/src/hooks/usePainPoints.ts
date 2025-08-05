@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { PainPoint, SearchFilters } from '../types';
 import { mockPainPoints } from '../data/mockData';
+import { apiService, mapApiPainPoint } from '../services/api';
 
 export const usePainPoints = () => {
   const [filters, setFilters] = useState<SearchFilters>({
@@ -12,8 +13,41 @@ export const usePainPoints = () => {
     category: 'Все категории'
   });
 
+  const [apiPainPoints, setApiPainPoints] = useState<PainPoint[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [useApi, setUseApi] = useState(true); // Переключатель между API и mock данными
+
+  // Функция загрузки данных из API
+  const loadPainPoints = useCallback(async () => {
+    if (!useApi) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const results = await apiService.getResults();
+      const mappedResults = results.map(mapApiPainPoint);
+      setApiPainPoints(mappedResults);
+    } catch (err) {
+      console.error('Failed to load pain points:', err);
+      setError('Не удалось загрузить данные. Показываем тестовые данные.');
+      setUseApi(false); // Переключаемся на mock данные при ошибке
+    } finally {
+      setIsLoading(false);
+    }
+  }, [useApi]);
+
+  // Загрузка данных при инициализации
+  useEffect(() => {
+    loadPainPoints();
+  }, [useApi, loadPainPoints]);
+
+  // Выбираем источник данных
+  const sourcePainPoints = useApi ? apiPainPoints : mockPainPoints;
+
   const filteredPainPoints = useMemo(() => {
-    return mockPainPoints.filter((painPoint) => {
+    return sourcePainPoints.filter((painPoint) => {
       // Query filter
       if (filters.query) {
         const query = filters.query.toLowerCase();
@@ -48,7 +82,7 @@ export const usePainPoints = () => {
 
       return true;
     });
-  }, [filters]);
+  }, [sourcePainPoints, filters]);
 
   const exportToCSV = () => {
     const topPainPoints = filteredPainPoints
@@ -83,6 +117,11 @@ export const usePainPoints = () => {
     painPoints: filteredPainPoints,
     filters,
     setFilters,
-    exportToCSV
+    exportToCSV,
+    isLoading,
+    error,
+    useApi,
+    setUseApi,
+    loadPainPoints
   };
 };
