@@ -4,14 +4,14 @@ FROM node:18-alpine as build
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy package files from frontend directory
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
 # Install pnpm and dependencies
 RUN npm install -g pnpm && pnpm install
 
 # Copy source code
-COPY . .
+COPY frontend/ .
 
 # Build the application
 RUN pnpm build
@@ -22,11 +22,11 @@ FROM nginx:alpine
 # Copy built files to nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration from parent directory
-COPY ../nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
-EXPOSE 80
+# Expose port 4200
+EXPOSE 4200
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

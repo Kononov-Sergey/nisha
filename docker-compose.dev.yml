@@ -10,15 +10,5 @@ services:
       - ./backend/.env:/app/.env
     restart: unless-stopped
 
-  frontend:
-    build:
-      context: .
-      dockerfile: ./frontend/Dockerfile
-    ports:
-      - "4200:4200"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
 volumes:
   db_data:

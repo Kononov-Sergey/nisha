@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Подключение роутеров
-app.include_router(pain_detector.router, prefix="/api/v1", tags=["pain-detection"])
+app.include_router(pain_detector.router, prefix="/api", tags=["pain-detection"])
 
 # Статические файлы для фронтенда
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
