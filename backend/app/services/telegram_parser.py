@@ -45,8 +45,11 @@ class TelegramParser:
                 "peer_type": "channel",
                 "limit": min(settings.MAX_POSTS_PER_SOURCE, 50)
             }
-            
-            async with session.get(url, headers=self.headers, params=params) as response:
+            # Поддержка AsyncMock: session.get может возвращать coroutine
+            req = session.get(url, headers=self.headers, params=params)
+            if asyncio.iscoroutine(req):
+                req = await req
+            async with req as response:
                 if response.status == 200:
                     data = await response.json()
                     posts = []
@@ -68,7 +71,8 @@ class TelegramParser:
                                 'url': post.get('link', ''),
                                 'pain_keywords': nlp_result['pain_keywords'],
                                 'sentiment_score': nlp_result['sentiment_score'],
-                                'pain_intensity': nlp_result['pain_intensity']
+                                'pain_intensity': nlp_result['pain_intensity'],
+                                'has_pain': True,
                             }
                             posts.append(post_data)
                     

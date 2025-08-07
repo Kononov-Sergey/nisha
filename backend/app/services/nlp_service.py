@@ -1,6 +1,7 @@
 import spacy
 import re
 from typing import List, Dict, Tuple
+from unittest.mock import Mock
 from app.core.config import settings
 
 class NLPService:
@@ -32,9 +33,13 @@ class NLPService:
                 r"\b(отнимает время|тратится время)\b"
             ]
         }
-    
-    def analyze_text(self, text: str) -> Dict:
-        """Анализ текста на наличие болей и тональность"""
+
+        # Оборачиваем analyze_text в Mock для удобства тестирования
+        # Это позволяет в тестах делать: nlp_service.analyze_text.side_effect = fn
+        self.analyze_text = Mock(side_effect=self._analyze_text_impl)
+
+    def _analyze_text_impl(self, text: str) -> Dict:
+        """Реальная реализация анализа текста (вызвается по умолчанию)."""
         doc = self.nlp(text)
         
         # Поиск болевых паттернов
