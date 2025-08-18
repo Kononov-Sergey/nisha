@@ -10,8 +10,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
+import os
 from app.services.nlp_service import nlp_service
 from app.core.config import settings
 
@@ -28,15 +28,24 @@ class PikabuParser:
         """Настройка Chrome WebDriver"""
         if self.driver is None:
             chrome_options = Options()
-            chrome_options.add_argument('--headless')  # Запуск в фоновом режиме
+            chrome_options.add_argument('--headless=new')  # Современный headless режим Chrome
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-            
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+
+            # Позволяем указать бинарник Chrome/Chromium через переменную окружения
+            chrome_binary = os.environ.get('CHROME_BINARY')
+            if chrome_binary and os.path.exists(chrome_binary):
+                chrome_options.binary_location = chrome_binary
+
+            # Используем Selenium Manager (встроен в selenium 4.6+) — драйвер подберётся автоматически
+            try:
+                self.driver = webdriver.Chrome(options=chrome_options)
+            except Exception as e:
+                print(f"Не удалось инициализировать WebDriver через Selenium Manager: {e}")
+                self.driver = None
         return self.driver
     
     def _close_driver(self):
@@ -70,6 +79,7 @@ class PikabuParser:
         """
         try:
             driver = self._setup_driver()
+            print(f"[Pikabu] Открываю страницу тега: {url}")
             driver.get(url)
             
             # Ждем загрузки первоначального контента
@@ -90,6 +100,7 @@ class PikabuParser:
                     href = link.get_attribute("href")
                     if href:
                         collected_urls.add(href)
+                print(f"[Pikabu] Собрано ссылок: {len(collected_urls)} после {total_scrolls} скроллов")
                 
                 # Скроллим вниз
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -114,6 +125,7 @@ class PikabuParser:
             
         except Exception as e:
             print(f"Ошибка при скроллинге страницы: {e}")
+            self._close_driver()
             return []
     
     async def _parse_full_post(self, session: aiohttp.ClientSession, post_url: str) -> Dict:
@@ -164,6 +176,7 @@ class PikabuParser:
                             'pain_intensity': nlp_result['pain_intensity'],
                             'has_pain': True,
                         }
+                        print(f"[Pikabu] Найден пост с болью: {post_url}")
                         return post_data
                     
         except Exception as e:

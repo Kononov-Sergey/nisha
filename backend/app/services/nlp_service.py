@@ -10,9 +10,11 @@ class NLPService:
         try:
             self.nlp = spacy.load(settings.SPACY_MODEL)
         except OSError:
-            print(f"Модель {settings.SPACY_MODEL} не найдена. Установите её:")
-            print(f"python -m spacy download {settings.SPACY_MODEL}")
-            raise
+            # Мягкий фолбэк: позволяем сервису работать без предобученной модели
+            # для целей отладки и базового анализа по ключевым словам.
+            print(f"Модель {settings.SPACY_MODEL} не найдена. Работаю в упрощённом режиме без NER.")
+            print(f"Для полноценной работы установите модель: python -m spacy download {settings.SPACY_MODEL}")
+            self.nlp = spacy.blank("ru")
         
         # Паттерны "болей"
         self.pain_patterns = {
