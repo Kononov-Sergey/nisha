@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
+import re
 import time
 from urllib.parse import quote
 from selenium import webdriver
@@ -32,7 +33,7 @@ class PikabuParser:
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--window-size=320,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
 
             # Позволяем указать бинарник Chrome/Chromium через переменную окружения
@@ -69,13 +70,13 @@ class PikabuParser:
         self,
         url: str,
         max_no_change_scrolls: int = 3,
-        max_total_scrolls: int = 50,
-        wait_between_scrolls_sec: float = 2.0,
+        wait_between_scrolls_sec: float = 1,
     ) -> List[str]:
         """Скроллим страницу до конца (lazy loading) и собираем ссылки на посты.
 
         Останавливаемся, когда несколько последовательных скроллов не приводят к росту высоты
-        страницы, либо при достижении верхнего лимита скроллов.
+        страницы, либо при достижении верхнего лимита скроллов, либо когда собрали
+        все посты согласно счётчику результатов на странице.
         """
         try:
             driver = self._setup_driver()
@@ -87,13 +88,26 @@ class PikabuParser:
                 EC.presence_of_element_located((By.CLASS_NAME, "story__title-link"))
             )
             
+            # Пытаемся считать ожидаемое число результатов (например, "876 постов")
+            expected_total_posts = None
+            try:
+                counter_el = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'span[class*="results-stories__count"]'))
+                )
+                digits = re.sub(r"\D+", "", (counter_el.text or ""))
+                if digits:
+                    expected_total_posts = int(digits)
+                    print(f"[Pikabu] Ожидаемое количество постов по счётчику: {expected_total_posts}")
+            except Exception:
+                pass
+
             # Собираем URL-ы постов
             collected_urls = set()
             last_height = driver.execute_script("return document.body.scrollHeight")
             no_change_attempts = 0
             total_scrolls = 0
             
-            while no_change_attempts < max_no_change_scrolls and total_scrolls < max_total_scrolls:
+            while no_change_attempts < max_no_change_scrolls:
                 # Находим все ссылки на посты на текущей странице
                 story_links = driver.find_elements(By.CLASS_NAME, "story__title-link")
                 for link in story_links:
@@ -101,6 +115,11 @@ class PikabuParser:
                     if href:
                         collected_urls.add(href)
                 print(f"[Pikabu] Собрано ссылок: {len(collected_urls)} после {total_scrolls} скроллов")
+
+                # Если знаем ожидаемое число постов и уже набрали не меньше — выходим
+                if expected_total_posts is not None and len(collected_urls) >= expected_total_posts:
+                    print(f"[Pikabu] Достигнут счётчик: {len(collected_urls)}/{expected_total_posts}")
+                    break
                 
                 # Скроллим вниз
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -151,8 +170,6 @@ class PikabuParser:
                         unwanted.decompose()
                     
                     text = content_element.get_text(strip=True)
-                    if len(text) < 50:  # Слишком короткие посты пропускаем
-                        return None
                     
                     # Анализ на боли
                     nlp_result = nlp_service.analyze_text(text)
@@ -176,6 +193,17 @@ class PikabuParser:
                             'pain_intensity': nlp_result['pain_intensity'],
                             'has_pain': True,
                         }
+                        # make post_data pretty in console
+                        print("-"*100)
+                        print(f"Title: {title}")
+                        print(f"Author: {author}")
+                        print(f"Platform ID: {platform_id}")
+                        print(f"Text: {text}")
+                        print(f"Pain Keywords: {nlp_result['pain_keywords']}")
+                        print(f"Sentiment Score: {nlp_result['sentiment_score']}")
+                        print(f"Pain Intensity: {nlp_result['pain_intensity']}")
+                        print("-"*100)
+                        
                         print(f"[Pikabu] Найден пост с болью: {post_url}")
                         return post_data
                     
@@ -183,14 +211,18 @@ class PikabuParser:
             print(f"Ошибка парсинга поста {post_url}: {e}")
             return None
 
-    async def _get_tag_posts_url(self, session: aiohttp.ClientSession, tag: str) -> List[Dict]:
-        """Получение и парсинг постов по тегу с использованием Selenium для lazy loading.
+    async def _get_tag_posts_url(self, session: aiohttp.ClientSession, tags: List[str]) -> List[Dict]:
+        """Получение и парсинг постов по сочетанию тегов с использованием Selenium для lazy loading.
 
-        Тег кодируется в URI-формат (включая кириллицу).
+        Каждый тег кодируется в URI-формат (включая кириллицу) и объединяется через запятую
+        в адресе: /tag/tag1,tag2,tag3
         """
         try:
-            encoded_tag = quote(tag.strip(), safe='')
-            url = f"{self.base_url}/tag/{encoded_tag}"
+            sanitized = [t.strip() for t in tags if isinstance(t, str) and t.strip()]
+            if not sanitized:
+                return []
+            encoded_joined = ",".join(quote(t, safe='') for t in sanitized)
+            url = f"{self.base_url}/tag/{encoded_joined}"
             
             # Используем Selenium для получения всех URL-ов с lazy loading
             post_urls = self._scroll_and_collect_urls(url)
@@ -208,7 +240,7 @@ class PikabuParser:
             return posts
 
         except Exception as e:
-            print(f"Ошибка парсинга Pikabu тега {tag}: {e}")
+            print(f"Ошибка парсинга Pikabu тегов {sanitized}: {e}")
             self._close_driver()  # Убеждаемся, что драйвер закрыт при ошибке
             return []
 
@@ -237,8 +269,6 @@ class PikabuParser:
                                 continue
                             
                             text = text_element.get_text(strip=True)
-                            if len(text) < 50:  # Слишком короткие посты пропускаем
-                                continue
                             
                             # Анализ на боли
                             nlp_result = nlp_service.analyze_text(text)
@@ -277,52 +307,54 @@ class PikabuParser:
             print(f"Ошибка парсинга страницы {page}: {e}")
             return []
     
-    async def parse_posts_by_tags(self, limit_per_tag: int = 20, tags: Optional[List[str]] = None) -> List[Dict]:
+    async def parse_posts_by_tags(self, tags: Optional[List] = None) -> List[Dict]:
         """Парсинг постов по списку тегов (или self.tags) с использованием Selenium.
 
         - Теги могут быть кириллическими — кодируются в URI.
-        - Для каждой страницы тега скроллим до конца, собираем ссылки и парсим полные посты.
+        - Поддерживаются группы тегов (массив массивов): [["Бизнес","Негатив"], ["Боли","Бизнес"]].
+          Если передан список строк, трактуется как одна группа.
         """
         all_posts = []
         
         async with aiohttp.ClientSession() as session:
             tags_to_process = tags if tags is not None else self.tags
-            for tag in tags_to_process:
-                print(f"Парсинг тега: {tag}")
-                posts = await self._get_tag_posts_url(session, tag)
-                
-                # Ограничиваем количество постов на тег
-                if len(posts) > limit_per_tag:
-                    posts = posts[:limit_per_tag]
+            # Нормализуем в список групп
+            if isinstance(tags_to_process, list):
+                if all(isinstance(x, list) for x in tags_to_process):
+                    groups: List[List[str]] = tags_to_process  # уже массив массивов
+                elif all(isinstance(x, str) for x in tags_to_process):
+                    groups = [tags_to_process]  # одна группа из переданных тегов
+                else:
+                    # Смешанный или некорректный формат — падаем назад к одиночным тегам
+                    groups = [[str(x)] for x in tags_to_process]
+            else:
+                groups = [[str(tags_to_process)]]
+
+            for group in groups:
+                print(f"Парсинг группы тегов: {group}")
+                posts = await self._get_tag_posts_url(session, group)
                 
                 all_posts.extend(posts)
-                print(f"Найдено {len(posts)} постов с болями для тега {tag}")
+                print(f"Найдено {len(posts)} постов с болями для группы {group}")
         
         return all_posts
 
-    async def parse_posts_by_tags_csv(self, tags_csv: str, limit_per_tag: int = 20) -> List[Dict]:
+    async def parse_posts_by_tags_csv(self, tags_csv: str) -> List[Dict]:
         """Парсинг постов по тегам, переданным через запятую.
 
-        Пример: "Бизнес, Негатив, Стартап".
+        Примеры:
+        - Одна группа: "Бизнес, Негатив, Стартап"
+        - Несколько групп (точка с запятой в качестве разделителя групп):
+          "Бизнес, Негатив; Боли, Бизнес"
         """
         if not tags_csv:
             return []
-        tags_list = [t.strip() for t in tags_csv.split(',') if t.strip()]
-        return await self.parse_posts_by_tags(limit_per_tag=limit_per_tag, tags=tags_list)
-
-    async def parse_recent_posts(self, pages: int = 3) -> List[Dict]:
-        """Парсинг недавних постов со страницы /new?page=... для первых N страниц.
-
-        Метод сохранен для обратной совместимости с тестами.
-        """
-        try:
-            results: List[Dict] = []
-            async with aiohttp.ClientSession() as session:
-                for page in range(1, pages + 1):
-                    page_posts = await self._parse_page(session, page)
-                    results.extend(page_posts)
-                    await asyncio.sleep(settings.PARSING_DELAY)
-            return results
-        except Exception as e:
-            print(f"Ошибка при парсинге недавних постов: {e}")
+        groups_raw = [g for g in (tags_csv.split(';')) if g is not None]
+        groups = []
+        for g in groups_raw:
+            tags_list = [t.strip() for t in g.split(',') if t and t.strip()]
+            if tags_list:
+                groups.append(tags_list)
+        if not groups:
             return []
+        return await self.parse_posts_by_tags(tags=groups)
