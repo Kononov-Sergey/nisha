@@ -59,7 +59,8 @@ class VKParser:
                         'url': f"https://vk.com/{domain}?w=wall-{post['owner_id']}_{post['id']}",
                         'pain_keywords': nlp_result['pain_keywords'],
                         'sentiment_score': nlp_result['sentiment_score'],
-                        'pain_intensity': nlp_result['pain_intensity']
+                        'pain_intensity': nlp_result['pain_intensity'],
+                        'has_pain': True,
                     }
                     posts.append(post_data)
             

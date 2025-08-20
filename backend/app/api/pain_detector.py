@@ -96,30 +96,30 @@ async def export_top_pains(db: Session = Depends(get_db)):
 async def parse_all_sources(keywords: List[str]):
     """Фоновая функция парсинга всех источников"""
     
-    try:
-        # VK парсинг
-        vk_parser = VKParser()
-        vk_groups = ["typicalkazan", "spb_today", "msk_now"]  # Примеры групп
-        vk_posts = await vk_parser.parse_groups(vk_groups)
-        save_posts_to_db(vk_posts)
+    # try:
+    #     # VK парсинг
+    #     vk_parser = VKParser()
+    #     vk_groups = ["typicalkazan", "spb_today", "msk_now"]  # Примеры групп
+    #     vk_posts = await vk_parser.parse_groups(vk_groups)
+    #     save_posts_to_db(vk_posts)
         
-    except Exception as e:
-        print(f"Ошибка VK парсинга: {e}")
+    # except Exception as e:
+    #     print(f"Ошибка VK парсинга: {e}")
     
-    try:
-        # Telegram парсинг
-        tg_parser = TelegramParser()
-        tg_channels = ["businessrussia", "entrepreneurs"]  # Примеры каналов
-        tg_posts = await tg_parser.parse_channels(tg_channels)
-        save_posts_to_db(tg_posts)
+    # try:
+    #     # Telegram парсинг
+    #     tg_parser = TelegramParser()
+    #     tg_channels = ["businessrussia", "entrepreneurs"]  # Примеры каналов
+    #     tg_posts = await tg_parser.parse_channels(tg_channels)
+    #     save_posts_to_db(tg_posts)
         
-    except Exception as e:
-        print(f"Ошибка Telegram парсинга: {e}")
+    # except Exception as e:
+    #     print(f"Ошибка Telegram парсинга: {e}")``
     
     try:
         # Pikabu парсинг
         pikabu_parser = PikabuParser()
-        pikabu_posts = await pikabu_parser.parse_recent_posts()
+        pikabu_posts = await pikabu_parser.parse_posts_by_tags()
         save_posts_to_db(pikabu_posts)
         
     except Exception as e:
